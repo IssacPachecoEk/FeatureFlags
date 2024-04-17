@@ -1,0 +1,12 @@
+samconfig.toml
+.terraform
+terraform.tfvars
+terraform.tfstate
+terraform.tfstate.backup
+terraform.*
+.terraform.*
+*.zip
+node_modules
+.infracost
+.aws-sam/
+.vscode/

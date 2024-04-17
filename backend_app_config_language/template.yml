@@ -1,0 +1,83 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS AppConfig Feature Flags example
+
+###################################################################################################
+##  Template Parameters                                                                         ##
+###################################################################################################
+Parameters:
+  AppConfigApplication:
+    Type: String
+    Description: Id of AppConfig Application
+  AppConfigEnvironment:
+    Type: String
+    Description: Id of AppConfig Environment
+  AppConfigConfigurationProfile:
+    Type: String
+    Description: Id of AppConfig Configuration Profile
+
+###################################################################################################
+##  Template Resources                                                                          ##
+###################################################################################################
+Resources:
+  myLanguages:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: handler.myLanguages
+      CodeUri: ./
+      Timeout: 20
+      MemorySize: 128
+      Timeout: 100
+      Layers:
+          - !FindInMap [AppConfigLayer, !Ref "AWS::Region", ARN]
+      
+      Environment:
+        Variables:
+          APPCONFIG_APPLICATION: !Ref AppConfigApplication
+          APPCONFIG_ENVIRONMENT: !Ref AppConfigEnvironment
+          APPCONFIG_CONFIGURATION: !Ref AppConfigConfigurationProfile          
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - appconfig:GetLatestConfiguration
+                - appconfig:StartConfigurationSession
+              Resource:
+                - !Sub 'arn:aws:appconfig:*:*:application/${AppConfigApplication}/environment/${AppConfigEnvironment}/configuration/${AppConfigConfigurationProfile}'
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /languages
+            Method: GET
+            ApiId: !Ref HttpApi
+  HttpApi:
+      Type: AWS::Serverless::HttpApi
+      Properties:
+        CorsConfiguration:
+          AllowMethods:
+            - GET
+          AllowHeaders: 
+            - '*'
+          AllowOrigins: '*'  
+###################################################################################################
+##  Mappings                                                                                     ##
+###################################################################################################
+
+Mappings:
+  AppConfigLayer: 
+    us-east-1:
+      ARN: arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension:61
+
+###################################################################################################
+##  Template outputs                                                                             ##
+###################################################################################################
+
+Outputs:
+  HttpApiUrl:
+    Description: URL of your API endpoint
+    Value:
+      Fn::Sub: 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'

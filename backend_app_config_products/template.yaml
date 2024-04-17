@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: AWS AppConfig Feature Flags example
+
+###################################################################################################
+##  Template Parameters                                                                         ##
+###################################################################################################
+Parameters:
+  AppName:
+    Type: String
+    Description: Name of application (no spaces). Value must be globally unique
+    Default: appconfig-feature-flags
+  AppConfigApplication:
+    Type: String
+    Description: Id of AppConfig Application
+    Default: l86ys22
+  AppConfigEnvironment:
+    Type: String
+    Description: Id of AppConfig Environment
+    Default: 44m39lh
+  AppConfigConfigurationProfile:
+    Type: String
+    Description: Id of AppConfig Configuration Profile
+    Default: 41ybjou
+
+###################################################################################################
+##  Template Resources                                                                          ##
+###################################################################################################
+Resources:
+  ##  Products Function
+  getAllProducts:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      CodeUri: ./
+      Runtime: nodejs16.x
+      MemorySize: 128
+      Timeout: 100
+      Layers:
+        - !FindInMap [AppConfigLayer, !Ref "AWS::Region", ARN]
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DynamoDBTable
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - appconfig:GetLatestConfiguration
+                - appconfig:StartConfigurationSession
+              Resource:
+                - !Sub "arn:aws:appconfig:*:*:application/${AppConfigApplication}/environment/${AppConfigEnvironment}/configuration/${AppConfigConfigurationProfile}"
+      Environment:
+        Variables:
+          PRODUCT_TABLE: !Ref DynamoDBTable
+          APPCONFIG_APPLICATION: !Ref AppConfigApplication
+          APPCONFIG_ENVIRONMENT: !Ref AppConfigEnvironment
+          APPCONFIG_CONFIGURATION: !Ref AppConfigConfigurationProfile
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /products
+            Method: GET
+            ApiId: !Ref HttpApi
+
+  ##  API Gateway
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods:
+          - GET
+        AllowHeaders:
+          - "*"
+        AllowOrigins:
+          - "*"
+
+  ##  Products Table
+  DynamoDBTable:
+    Type: "AWS::DynamoDB::Table"
+    DeletionPolicy: Delete
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+###################################################################################################
+##  Mappings                                                                                     ##
+###################################################################################################
+
+Mappings:
+  ## See layer ARNs https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-integration-lambda-extensions.html
+  AppConfigLayer:
+    us-east-1:
+      ARN: arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension:61
+
+###################################################################################################
+##  Template outputs                                                                             ##
+###################################################################################################
+
+Outputs:
+  HttpApiUrl:
+    Description: URL of your API endpoint
+    Value:
+      Fn::Sub: "https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"
+  DynamoDBTableName:
+    Description: The name of your DynamoDB table
+    Value: !Ref DynamoDBTable
